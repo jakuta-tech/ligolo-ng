@@ -53,21 +53,24 @@ func (m *RWEndpoint) Attach(dispatcher stack.NetworkDispatcher) {
 func (m *RWEndpoint) dispatchLoop() {
 	for {
 		packet := make([]byte, m.mtu)
-
-		n, err := m.wgdev.Read(packet, 0)
+		// Complying with macOS bullshit - I bought a Mac Mini to solve this nonsense. @phocean you lied, it sucks
+		n, err := m.wgdev.Read(packet, offset)
 		if err != nil {
 			break
 		}
-
+		if n > int(m.mtu) {
+			// Not sure why it happens, discard packet - https://github.com/nicocha30/ligolo-ng/issues/54
+			continue
+		}
 		if !m.IsAttached() {
 			continue
 		}
 
 		pkb := stack.NewPacketBuffer(stack.PacketBufferOptions{
-			Payload: buffer.NewWithData(packet[:n]),
+			Payload: buffer.MakeWithData(packet[offset : n+offset]),
 		})
 
-		switch header.IPVersion(packet) {
+		switch header.IPVersion(packet[offset:]) {
 		case header.IPv4Version:
 			m.dispatcher.DeliverNetworkPacket(header.IPv4ProtocolNumber, pkb)
 		case header.IPv6Version:
@@ -94,12 +97,15 @@ func (m *RWEndpoint) WritePackets(pkts stack.PacketBufferList) (int, tcpip.Error
 }
 
 // WritePacket writes outbound packets
-func (m *RWEndpoint) WritePacket(pkt *stack.PacketBuffer) tcpip.Error {
+func (m *RWEndpoint) WritePacket(pkt stack.PacketBufferPtr) tcpip.Error {
 	var buf buffer.Buffer
-	pktBuf := pkt.Buffer()
+	pktBuf := pkt.ToBuffer()
 	buf.Merge(&pktBuf)
 
-	if _, err := m.wgdev.Write(buf.Flatten(), 0); err != nil {
+	// Complying with macOS bullshit
+	offsetBuf := make([]byte, offset)
+
+	if _, err := m.wgdev.Write(append(offsetBuf, buf.Flatten()...), offset); err != nil {
 		return &tcpip.ErrInvalidEndpointState{}
 	}
 	return nil
@@ -114,10 +120,12 @@ func (*RWEndpoint) ARPHardwareType() header.ARPHardwareType {
 }
 
 // AddHeader implements stack.LinkEndpoint.AddHeader.
-func (*RWEndpoint) AddHeader(pkt *stack.PacketBuffer) {
+func (*RWEndpoint) AddHeader(pkt stack.PacketBufferPtr) {
 }
 
 // WriteRawPacket implements stack.LinkEndpoint.
-func (*RWEndpoint) WriteRawPacket(*stack.PacketBuffer) tcpip.Error {
+func (*RWEndpoint) WriteRawPacket(stack.PacketBufferPtr) tcpip.Error {
 	return &tcpip.ErrNotSupported{}
 }
+
+func (*RWEndpoint) ParseHeader(stack.PacketBufferPtr) bool { return true }

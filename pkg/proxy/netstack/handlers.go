@@ -1,10 +1,11 @@
 package netstack
 
 import (
+	"io"
+	"net"
+
 	"github.com/hashicorp/yamux"
-	"github.com/nicocha30/ligolo-ng/pkg/protocol"
-	"github.com/nicocha30/ligolo-ng/pkg/relay"
-	"github.com/sirupsen/logrus"
+	"github.com/nicocha30/gvisor-ligolo/pkg/tcpip"
 	"github.com/nicocha30/gvisor-ligolo/pkg/tcpip/adapters/gonet"
 	"github.com/nicocha30/gvisor-ligolo/pkg/tcpip/header"
 	"github.com/nicocha30/gvisor-ligolo/pkg/tcpip/stack"
@@ -12,7 +13,9 @@ import (
 	"github.com/nicocha30/gvisor-ligolo/pkg/tcpip/transport/tcp"
 	"github.com/nicocha30/gvisor-ligolo/pkg/tcpip/transport/udp"
 	"github.com/nicocha30/gvisor-ligolo/pkg/waiter"
-	"io"
+	"github.com/nicocha30/ligolo-ng/pkg/protocol"
+	"github.com/nicocha30/ligolo-ng/pkg/relay"
+	"github.com/sirupsen/logrus"
 )
 
 // handleICMP process incoming ICMP packets and, depending on the target host status, respond a ICMP ECHO Reply
@@ -25,7 +28,7 @@ func handleICMP(nstack *stack.Stack, localConn TunConn, yamuxConn *yamux.Session
 	}
 	h := header.ICMPv4(v)
 	if h.Type() == header.ICMPv4Echo {
-		iph := header.IPv4(pkt.NetworkHeader().View())
+		iph := header.IPv4(pkt.NetworkHeader().Slice())
 		yamuxConnectionSession, err := yamuxConn.Open()
 		if err != nil {
 			logrus.Error(err)
@@ -37,10 +40,7 @@ func handleICMP(nstack *stack.Stack, localConn TunConn, yamuxConn *yamux.Session
 		protocolEncoder := protocol.NewEncoder(yamuxConnectionSession)
 		protocolDecoder := protocol.NewDecoder(yamuxConnectionSession)
 
-		if err := protocolEncoder.Encode(protocol.Envelope{
-			Type:    protocol.MessageHostPingRequest,
-			Payload: icmpPacket,
-		}); err != nil {
+		if err := protocolEncoder.Encode(icmpPacket); err != nil {
 			logrus.Error(err)
 			return
 		}
@@ -51,10 +51,11 @@ func handleICMP(nstack *stack.Stack, localConn TunConn, yamuxConn *yamux.Session
 			return
 		}
 
-		response := protocolDecoder.Envelope.Payload
-		reply := response.(protocol.HostPingResponsePacket)
+		reply := protocolDecoder.Payload.(*protocol.HostPingResponsePacket)
 		if reply.Alive {
+			logrus.Debug("Host is alive, sending reply")
 			ProcessICMP(nstack, pkt)
+
 		}
 
 	}
@@ -82,13 +83,26 @@ func HandlePacket(nstack *stack.Stack, localConn TunConn, yamuxConn *yamux.Sessi
 		return
 	}
 
-	if endpointID.LocalAddress.To4() != "" {
+	if endpointID.LocalAddress.To4() != (tcpip.Address{}) {
 		protonet = protocol.Networkv4
 	} else {
 		protonet = protocol.Networkv6
 	}
 
 	logrus.Debugf("Got packet source : %s - endpointID : %s:%d", endpointID.RemoteAddress, endpointID.LocalAddress, endpointID.LocalPort)
+
+	targetIp := endpointID.LocalAddress.String()
+
+	magicNet := net.IPNet{
+		IP:   net.IPv4(240, 0, 0, 0),
+		Mask: []byte{0xf0, 0x00, 0x00, 0x00},
+	}
+
+	if magicNet.Contains(net.ParseIP(targetIp)) {
+		logrus.Debug("MagicIP detected, redirecting to agent local machine")
+		// Magic IP detected
+		targetIp = "127.0.0.1"
+	}
 
 	yamuxConnectionSession, err := yamuxConn.Open()
 	if err != nil {
@@ -98,17 +112,14 @@ func HandlePacket(nstack *stack.Stack, localConn TunConn, yamuxConn *yamux.Sessi
 	connectPacket := protocol.ConnectRequestPacket{
 		Net:       protonet,
 		Transport: prototransport,
-		Address:   endpointID.LocalAddress.String(),
+		Address:   targetIp,
 		Port:      endpointID.LocalPort,
 	}
 
 	protocolEncoder := protocol.NewEncoder(yamuxConnectionSession)
 	protocolDecoder := protocol.NewDecoder(yamuxConnectionSession)
 
-	if err := protocolEncoder.Encode(protocol.Envelope{
-		Type:    protocol.MessageConnectRequest,
-		Payload: connectPacket,
-	}); err != nil {
+	if err := protocolEncoder.Encode(connectPacket); err != nil {
 		logrus.Error(err)
 		return
 	}
@@ -121,8 +132,7 @@ func HandlePacket(nstack *stack.Stack, localConn TunConn, yamuxConn *yamux.Sessi
 		return
 	}
 
-	response := protocolDecoder.Envelope.Payload
-	reply := response.(protocol.ConnectResponsePacket)
+	reply := protocolDecoder.Payload.(*protocol.ConnectResponsePacket)
 	if reply.Established {
 		logrus.Debug("Connection established on remote end!")
 		go func() {

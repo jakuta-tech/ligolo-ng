@@ -7,7 +7,6 @@ import (
 // Envelope is the structure used when Encoding/Decode ligolo packets
 type Envelope struct {
 	Type    uint8
-	Size    int32
 	Payload interface{}
 }
 
@@ -27,6 +26,7 @@ const (
 	MessageListenerCloseRequest
 	MessageListenerCloseResponse
 	MessageClose
+	MessageListenerSocketConnectionReady
 )
 
 const (
@@ -47,6 +47,7 @@ type InfoRequestPacket struct {
 type InfoReplyPacket struct {
 	Name       string
 	Interfaces []NetInterface
+	SessionID  string
 }
 
 // ListenerSockRequestPacket is used by the proxy when relaying a listener socket
@@ -58,6 +59,10 @@ type ListenerSockRequestPacket struct {
 type ListenerSockResponsePacket struct {
 	ErrString string
 	Err       bool
+}
+
+type ListenerSocketConnectionReady struct {
+	Err bool
 }
 
 // ListenerRequestPacket is used when a new listener socket is created by the proxy.
@@ -83,6 +88,10 @@ type ListenerBindReponse struct {
 	SockID    int32
 	Err       bool
 	ErrString string
+}
+
+// ListenerUDPPacket
+type ListenerUDPPacket struct {
 }
 
 // ListenerCloseRequestPacket is the packet sent when closing Listeners

